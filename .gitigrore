@@ -1,0 +1,4 @@
+.config/neovim/*.spl
+.config/neovim/*.add.spl
+.config/neovim/lazy-lock.json
+
