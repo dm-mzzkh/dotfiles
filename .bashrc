@@ -79,6 +79,9 @@ echo "乀(  J し)"
 if type when >/dev/null 2>&1; then
     when cm
 fi
+if type show_tasks >/dev/null 2>&1; then
+    show_tasks
+fi
 
 # zoxide
 eval "$(zoxide init bash)"

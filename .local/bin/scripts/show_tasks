@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+NOTE_FOLDER="$HOME/Documents/vimwiki/notes"
+TODAY=$(LC_TIME=ru_RU.UTF-8 date +"%-d %B %a")
+FD_PREFIX=$(date +%Y%m)
+
+FILE=$(
+    fd "^${FD_PREFIX}" -t f -0 "$NOTE_FOLDER" | \
+    while IFS= read -r -d '' f; do
+        second_line=$(sed -n '2p' "$f")
+        if [[ "$second_line" == "$TODAY" ]]; then
+            echo "$f"
+            break
+        fi
+    done
+)
+
+awk '/^# Plans/{flag=1; next} /^#/{flag=0} flag' "$FILE"
