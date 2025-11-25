@@ -128,15 +128,19 @@ device_connected() {
 # Toggles device connection
 toggle_connection() {
     if device_connected "$1"; then
-	notify-send "$2" "disconnected"
-        bluetoothctl disconnect "$1"
-
-        # device_menu "$device"
+        if bluetoothctl disconnect "$1" | grep -q "no"; then
+            notify-send "🔵 Bluetooth" "$2 disconnected"
+	    pkill -RTMIN+11 dwmblock
+        else
+            notify-send "🔴 Bluetooth" "$2 disconnection failed"
+        fi
     else
-        bluetoothctl connect "$1"
-	notify-send "$2" "connected"
-
-        # device_menu "$device"
+        if bluetoothctl connect "$1" | grep -q "yes"; then
+            notify-send "🔵 Bluetooth" "$2 connected"
+	    pkill -RTMIN+11 dwmblock
+        else
+            notify-send "🔴 Bluetooth" "$2 connection failed"
+        fi
     fi
 }
 
