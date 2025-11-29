@@ -15,4 +15,8 @@ FILE=$(
     done
 )
 
-awk '/^# Plans/{flag=1; next} /^#/{flag=0} flag' "$FILE"
+[ -z "$FILE" ] && echo "no tasks from notes :3" && exit
+PLANS=$(awk '/^# Plans/{flag=1; next} /^#/{flag=0} flag' "$FILE" | awk 'NF')
+[ -z "$PLANS" ] && echo "no tasks from notes :3" && exit
+
+echo $PLANS
