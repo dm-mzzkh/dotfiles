@@ -72,9 +72,13 @@ parse_git_branch() {
 
 export PS1="\[\e[32m\]\u@\h:\[\e[34m\]\w\[\e[0m\]\$(parse_git_branch)$ "
 
-echo -e "              Howdy, \033[35m$(whoami)\033[37m! from \033[35m$(hostnamectl hostname)\033[37m <3"
-echo "   /ᐠ-˕-マ  ノ"
-echo "乀(  J し)"
+if [ "$XDG_SESSION_TYPE" == "tty" ]; then
+  echo -e "Howdy, \033[35m$(whoami)\033[37m! from \033[35m$(hostnamectl hostname)\033[37m with <3"
+else
+  echo -e "              Howdy, \033[35m$(whoami)\033[37m! from \033[35m$(hostnamectl hostname)\033[37m with <3"
+  echo "   /ᐠ-˕-マ  ノ"
+  echo "乀(  J し)"
+fi
 
 if type when >/dev/null 2>&1; then
     when cm
