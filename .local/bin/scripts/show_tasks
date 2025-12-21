@@ -1,22 +1,38 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 NOTE_FOLDER="$HOME/Documents/vimwiki/notes"
-TODAY=$(LC_TIME=ru_RU.UTF-8 date +"%-d %B %a")
-FD_PREFIX=$(date +%Y%m)
+TODAY="$(LC_TIME=ru_RU.UTF-8 date +"%-d %B %a")"
+FD_PREFIX="$(date +%Y%m)"
 
-FILE=$(
-    fd "^${FD_PREFIX}" -t f -0 "$NOTE_FOLDER" | \
+FILE="$(
+    fd "^${FD_PREFIX}" -t f -0 "$NOTE_FOLDER" |
     while IFS= read -r -d '' f; do
-        second_line=$(sed -n '2p' "$f")
+        second_line="$(sed -n '2p' "$f")"
         if [[ "$second_line" == "$TODAY" ]]; then
-            echo "$f"
+            printf '%s\n' "$f"
             break
         fi
     done
-)
+)"
 
-[ -z "$FILE" ] && echo "no tasks from notes :3" && exit
-PLANS=$(awk '/^# Plans/{flag=1; next} /^#/{flag=0} flag' "$FILE" | awk 'NF')
-[ -z "$PLANS" ] && echo "no tasks from notes :3" && exit
+if [[ -z "${FILE:-}" ]]; then
+    echo "no tasks from notes :3"
+    exit 0
+fi
 
-echo $PLANS
+PLANS="$(
+    awk '
+        /^# Plans/ {in_plans=1; next}
+        /^#/       {in_plans=0}
+        in_plans && NF
+    ' "$FILE"
+)"
+
+if [[ -z "$PLANS" ]]; then
+    echo "no tasks from notes :3"
+    exit 0
+fi
+
+echo
+printf '%s\n' "$PLANS"
