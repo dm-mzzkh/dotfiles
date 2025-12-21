@@ -97,7 +97,8 @@ handle_extension() {
     xlsx)
     ## Preview as csv conversion
     ## Uses: https://github.com/dilshod/xlsx2csv
-    xlsx2csv -- "${FILE_PATH}" && exit 5
+    xlsx2csv -- "${FILE_PATH}" | column -s, -t && exit 5
+
     exit 1;;
 
     ## HTML
