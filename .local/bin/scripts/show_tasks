@@ -8,7 +8,7 @@ FD_PREFIX="$(date +%Y%m)"
 FILE="$(
     fd "^${FD_PREFIX}" -t f -0 "$NOTE_FOLDER" |
     while IFS= read -r -d '' f; do
-        second_line="$(sed -n '2p' "$f")"
+	second_line="$(sed -n '2p' "$f" | sed 's/^# *//')"
         if [[ "$second_line" == "$TODAY" ]]; then
             printf '%s\n' "$f"
             break
@@ -23,7 +23,7 @@ fi
 
 PLANS="$(
     awk '
-        /^# Plans/ {in_plans=1; next}
+        /^# plans/ {in_plans=1; next}
         /^#/       {in_plans=0}
         in_plans && NF
     ' "$FILE"
