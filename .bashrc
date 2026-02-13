@@ -55,6 +55,7 @@ alias nano='nvim'
 alias notes='nvim ~/Documents/vimwiki/notes/'
 
 alias hrg='history | rg'
+alias unzipd='f(){ unzip "$1" -d "${1%.zip}"; }; f'
 
 alias gs='git status'
 alias ga='git add'
