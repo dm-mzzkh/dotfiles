@@ -16,13 +16,49 @@ set mouse true
 map x $$f
 map X !$f
 
+# soft delete -> macOS Trash (recoverable). Items the volume can't trash
+# (external/network drives without a .Trashes) fall back to an rm -rf prompt.
 cmd trash ${{
+    set -f
+    failed=""
     while IFS= read -r f; do
-        trash "$f"
+        [ -z "$f" ] && continue
+        trash "$f" || failed="$failed$f
+"
     done <<< "$fx"
+    if [ -n "$failed" ]; then
+        clear
+        printf 'Could not move to Trash (volume has no Trash):\n'
+        printf '%s' "$failed" | sed 's/^/  /'
+        printf 'Permanently delete these with rm -rf? [y/N] '
+        read -r ans
+        case "$ans" in
+            [yY]*) printf '%s' "$failed" | while IFS= read -r f; do
+                       [ -n "$f" ] && rm -rf -- "$f"
+                   done ;;
+        esac
+    fi
+    lf -remote "send $id unselect"
 }}
+map D :trash
 
-map D :trash 
+# permanent delete (rm -rf) with confirmation — irreversible
+cmd delete ${{
+    set -f
+    clear
+    printf 'PERMANENTLY delete (rm -rf):\n'
+    printf '%s\n' "$fx" | sed 's/^/  /'
+    printf 'Are you sure? [y/N] '
+    read -r ans
+    case "$ans" in
+        [yY]|[yY][eE][sS])
+            while IFS= read -r f; do
+                [ -n "$f" ] && rm -rf -- "$f"
+            done <<< "$fx" ;;
+    esac
+    lf -remote "send $id unselect"
+}}
+map <delete> :delete
 
 
 cmd drop ${{
