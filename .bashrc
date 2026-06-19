@@ -15,6 +15,7 @@ export PREFIX="~/.local"
 
 export HISTFILE=$HOME/.bash_history
 export TERM=xterm-256color
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 HISTSIZE=10000
 HISTFILESIZE=20000
@@ -35,15 +36,20 @@ if [ -d "$HOME/.local/bin" ] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
+export NVM_DIR="$HOME/.nvm"
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
+
+
+
 alias yaourt='paru'
 alias yay='paru'
 alias paru-find='paru -Slq | fzf --multi --preview "paru -Si {1}"'
 
 alias rm='rm -i'
 
-alias cat='bat -p --style=grid'
+alias cat='bat -p --style=grid --style plain --pager never'
 alias grep='rg'
-alias cp='xcp'
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
 alias ip='ip -c'
