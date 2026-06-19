@@ -3,6 +3,16 @@ set shell bash
 set scrolloff 5
 set icons
 
+# navigation / search
+set ignorecase true
+set smartcase true
+set incsearch true
+set incfilter true
+set wrapscan true
+set dircounts true
+set info size
+set mouse true
+
 map x $$f
 map X !$f
 
