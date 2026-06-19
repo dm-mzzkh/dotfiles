@@ -92,7 +92,31 @@ cmd zi ${{
 
 cmd on-cd &{{
     zoxide add "$PWD"
+    ~/.config/lf/tabs.sh sync "$id" "$PWD"
 }}
+
+# --- tabs (ranger-style; lf has no native tabs) ---------------------------
+cmd on-init &~/.config/lf/tabs.sh sync  "$id" "$PWD"
+cmd on-quit &~/.config/lf/tabs.sh clean "$id"
+cmd tab-new   &~/.config/lf/tabs.sh new    "$id" "$PWD"
+cmd tab-close &~/.config/lf/tabs.sh close  "$id" "$PWD"
+cmd tab-next  &~/.config/lf/tabs.sh next   "$id" "$PWD"
+cmd tab-prev  &~/.config/lf/tabs.sh prev   "$id" "$PWD"
+cmd tab-goto  &~/.config/lf/tabs.sh switch "$id" "$PWD" "$1"
+
+map gn tab-new
+map gx tab-close
+map <tab> tab-next
+map <backtab> tab-prev
+map g1 tab-goto 1
+map g2 tab-goto 2
+map g3 tab-goto 3
+map g4 tab-goto 4
+map g5 tab-goto 5
+map g6 tab-goto 6
+map g7 tab-goto 7
+map g8 tab-goto 8
+map g9 tab-goto 9
 
 cmd fzf $$EDITOR "$(fd "$1" | fzf)"
 map f push :fzf<space>
