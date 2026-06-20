@@ -1,7 +1,10 @@
 set shell bash
-#set drawbox
+set drawbox
+set ratios 1:2:4
 set scrolloff 5
 set icons
+set number
+set relativenumber
 
 # navigation / search
 set ignorecase true
@@ -84,34 +87,23 @@ cmd mkdir %{{
 map Co :push $mkdir<space>
 map Ci :push $touch<space>
 
-cmd extract ${{
-    set -f
-    case $f in
-        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) tar xjvf "$f";;
-        *.tar.gz|*.tgz) tar xzvf "$f";;
-        *.tar.xz|*.txz) tar xJvf "$f";;
-        *.zip) unzip "$f";;
-        *.rar) unrar x "$f";;
-        *.7z) 7z x "$f";;
-    esac
+# runs in the background via job.sh (formats + extract-into-subdir live there);
+# watch progress with `gj`.
+cmd extract &{{
+    files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
+    LF_ID="$id" ~/.config/lf/job.sh extract "${files[@]}"
 }}
 
 map Ae :extract
 
-cmd tar ${{
-    set -f
-    mkdir $1
-    cp -r $fx $1
-    tar czf $1.tar.gz $1
-    rm -rf $1
+cmd tar &{{
+    files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
+    LF_ID="$id" ~/.config/lf/job.sh tarball "$1" "${files[@]}"
 }}
 
-cmd zip ${{
-    set -f
-    mkdir $1
-    cp -r $fx $1
-    zip -r $1.zip $1
-    rm -rf $1
+cmd zip &{{
+    files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
+    LF_ID="$id" ~/.config/lf/job.sh zipball "$1" "${files[@]}"
 }}
 
 # bash/any POSIX shell
@@ -154,8 +146,11 @@ map g7 tab-goto 7
 map g8 tab-goto 8
 map g9 tab-goto 9
 
-cmd fzf $$EDITOR "$(fd "$1" | fzf)"
-map f push :fzf<space>
+cmd find-file ${{
+    res="$(fd --type f --hidden --exclude .git | fzf --reverse)" || exit 0
+    [ -n "$res" ] && lf -remote "send $id select \"$(printf '%s' "$res" | sed 's/\\/\\\\/g;s/"/\\"/g')\""
+}}
+map f find-file
 
 
 cmd fzf_search ${{
@@ -178,7 +173,22 @@ map gL follow-link
 
 
 
-map p :paste; clear
+# conflict-safe paste with progress. lf's copy/cut buffer lives in this file
+# (line 1 = "copy"/"move", rest = paths). rsync --ignore-existing / mv -n never
+# clobber; --progress works with macOS' openrsync (no --info=progress2 there).
+# p = copy/move, renaming on name clash (folder -> folder_1, folder_2, ...)
+cmd paste &{{
+    LF_ID="$id" ~/.config/lf/job.sh paste rename
+    lf -remote "send $id clear"
+}}
+map p paste
+
+# P = copy/move, merging into a same-named folder (recursively; source wins on files)
+cmd paste-merge &{{
+    LF_ID="$id" ~/.config/lf/job.sh paste merge
+    lf -remote "send $id clear"
+}}
+map P paste-merge
 
 
 cmd rotate ${{
@@ -215,13 +225,117 @@ cmd openwith !{{
 
 map o :openwith
 
-cmd compress_video !{{
-    while IFS= read -r f; do
-        compress_video "$f"
-    done <<< "$fx"
+cmd compress_video &{{
+    files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
+    LF_ID="$id" ~/.config/lf/job.sh compress "${files[@]}"
 }}
 
-map Ic :compress_video 
+map Ic :compress_video
+
+# --- background-jobs popup: watch all running copy/extract/compress at once -
+cmd jobs ${{
+    if [ -n "${TMUX:-}" ]; then
+        tmux display-popup -E -w 70% -h 60% -T " lf jobs " "$HOME/.config/lf/job.sh view"
+    else
+        "$HOME/.config/lf/job.sh" view
+    fi
+}}
+map gj jobs
+
+# --- smart open: text -> $EDITOR, everything else -> macOS open ------------
+# lf only calls `open` for files; the dir guard is a harmless belt-and-braces.
+cmd open ${{
+    [ -d "$f" ] && { lf -remote "send $id cd \"$f\""; exit; }
+    case "$(file -Lb --mime-type -- "$f")" in
+        text/*|application/json|application/javascript|*/xml|*/*+xml|inode/x-empty)
+            "${EDITOR:-vi}" "$f";;
+        video/*) nohup mpv -- "$f" >/dev/null 2>&1 & ;;
+        *) open "$f";;
+    esac
+}}
+
+# --- bulk rename: edit names of the selection (or whole dir) in $EDITOR -----
+cmd bulk-rename ${{
+    old="$(mktemp)"; new="$(mktemp)"
+    if [ -n "$fs" ]; then names="$fs"; else names="$(ls)"; fi
+    printf '%s\n' "$names" > "$old"; printf '%s\n' "$names" > "$new"
+    "${EDITOR:-vi}" "$new"
+    if [ "$(wc -l < "$old")" -ne "$(wc -l < "$new")" ]; then
+        rm -f "$old" "$new"; exit
+    fi
+    paste "$old" "$new" | while IFS="$(printf '\t')" read -r o n; do
+        { [ "$o" = "$n" ] || [ -z "$n" ]; } && continue
+        [ -e "$n" ] && { printf 'skip (target exists): %s\n' "$n"; continue; }
+        mv -- "$o" "$n"
+    done
+    rm -f "$old" "$new"
+    lf -remote "send $id unselect"; lf -remote "send $id reload"
+}}
+map R bulk-rename
+
+# --- copy / move / symlink the selection into a dir picked via zoxide+fzf ---
+cmd cpto ${{
+    dest="$(zoxide query -l | fzf --prompt='copy → ')" || exit 0
+    [ -d "$dest" ] || exit 0
+    while IFS= read -r f; do [ -n "$f" ] && cp -a -- "$f" "$dest"/; done <<< "$fx"
+    lf -remote "send $id unselect"
+}}
+cmd mvto ${{
+    dest="$(zoxide query -l | fzf --prompt='move → ')" || exit 0
+    [ -d "$dest" ] || exit 0
+    while IFS= read -r f; do [ -n "$f" ] && mv -- "$f" "$dest"/; done <<< "$fx"
+    lf -remote "send $id unselect"
+}}
+cmd linkto ${{
+    dest="$(zoxide query -l | fzf --prompt='symlink → ')" || exit 0
+    [ -d "$dest" ] || exit 0
+    while IFS= read -r f; do [ -n "$f" ] && ln -s -- "$f" "$dest"/; done <<< "$fx"
+}}
+map Mc cpto
+map Mm mvto
+map Ml linkto
+
+# --- copy path / name / dir to the macOS clipboard -------------------------
+cmd yank-path ${{ printf '%s\n' "$fx" | sed '/^$/d' | pbcopy; }}
+cmd yank-name ${{ while IFS= read -r p; do [ -n "$p" ] && basename "$p"; done <<< "$fx" | pbcopy; }}
+cmd yank-dir  ${{ printf '%s' "$PWD" | pbcopy; }}
+map Yp yank-path
+map Yn yank-name
+map Yd yank-dir
+
+# --- macOS Quick Look (Finder-style peek) and reveal in Finder -------------
+cmd quicklook &{{
+    files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
+    qlmanage -p "${files[@]}" >/dev/null 2>&1
+}}
+map gp quicklook
+cmd reveal &open -R "$f"
+map gR reveal
+
+# --- toggle the executable bit on the selection ----------------------------
+cmd toggle-exec ${{
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        if [ -x "$f" ]; then chmod -x -- "$f"; else chmod +x -- "$f"; fi
+    done <<< "$fx"
+    lf -remote "send $id reload"
+}}
+map gX toggle-exec
+
+# --- disk usage of the selection (lf otherwise shows only dir counts) ------
+cmd usage ${{
+    clear
+    files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
+    du -sch -- "${files[@]}" 2>/dev/null | sort -h
+    printf '\n[enter] '; read -r _
+}}
+map gu usage
+
+# --- shell here, lazygit, toggle preview -----------------------------------
+map S $$SHELL
+cmd lazygit ${{ lazygit; }}
+map gi lazygit
+map zp set preview!
 
 set preview true
 #set previewtruecolor

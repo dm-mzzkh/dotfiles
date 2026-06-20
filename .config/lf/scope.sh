@@ -41,7 +41,14 @@ cache_for() {
 # Draw an image in the preview pane, then stop (image persists until cleaner).
 draw() {
   if [ -n "$KITTEN" ]; then
-    if $KITTEN icat --stdin no --transfer-mode memory \
+    # Inside tmux, draw via Unicode placeholders + tmux passthrough: the image
+    # is bound to text cells, so lf's normal pane redraw erases it on the next
+    # preview. The old direct-placement path relied on a delete escape that tmux
+    # mangled — that is what left "garbage" from previous previews on screen.
+    # (string, not array: keep working under macOS bash 3.2 + `set -u`.)
+    pt=""
+    [ -n "${TMUX:-}" ] && pt="--unicode-placeholder --passthrough tmux"
+    if $KITTEN icat --stdin no --transfer-mode memory $pt \
         --place "${W}x${H}@${X}x${Y}" "$1" </dev/null >/dev/tty 2>/dev/null; then
       exit 1
     fi
