@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # lf cleaner — erase the kitty image drawn by scope.sh before the next preview.
 #
-# Must clear via `kitten icat --clear`, NOT a raw graphics escape: kitten wraps
-# the escapes in tmux passthrough, so this also works when lf runs inside tmux,
-# where a bare APC sequence written to the tty is swallowed and the image lingers.
-# Keep --transfer-mode in sync with scope.sh's draw().
+# lf only runs the cleaner when leaving a preview whose cache is disabled
+# (previewer exited non-zero). scope.sh draws images with `exit 1` and caches
+# everything else with `exit 0`, so this fires *only* when leaving an image —
+# not on every cursor move over text/dirs (that made scrolling laggy).
+#
+# Must clear via `kitten icat --clear` (not a raw escape): kitten wraps the
+# escapes in tmux passthrough, so it also works when lf runs inside tmux.
 
 has() { command -v "$1" >/dev/null 2>&1; }
 
@@ -17,14 +20,21 @@ elif has kitty; then
   KITTEN="kitty +kitten"
 fi
 
+# $KITTEN may be a path with a space (Nix bundle) or "kitty +kitten" — never
+# use it unquoted.
+kitten_run() {
+  case "$KITTEN" in
+    "kitty +kitten") kitty +kitten "$@" ;;
+    *)               "$KITTEN" "$@" ;;
+  esac
+}
+
 if [ -n "$KITTEN" ]; then
   pt=""
   [ -n "${TMUX:-}" ] && pt="--passthrough tmux"
-  $KITTEN icat --clear --silent --stdin no --transfer-mode memory $pt \
+  kitten_run icat --clear --silent --stdin no --transfer-mode memory $pt \
     </dev/null >/dev/tty 2>/dev/null
 else
-  # No kitten: only chafa symbol output was drawn, which lf redraws over.
-  # Fall back to the protocol "delete all" in case kitty is the terminal.
   printf '\033_Ga=d,d=A\033\\' >/dev/tty 2>/dev/null
 fi
 exit 0

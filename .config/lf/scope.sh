@@ -4,8 +4,9 @@
 # text, rich metadata, with graceful fallbacks. Tuned for macOS + kitty.
 #
 # Called by lf as:  scope.sh <file> <width> <height> <x> <y>
-# lf exit codes:    0 show stdout · 1 no preview · 2 plain text
-#                   5 show stdout (and never reload)
+# lf exit codes:    0 show stdout (cached) · 1 no preview · 2 plain text
+# Images draw out-of-band and exit 1 (cache off) so the cleaner clears them when
+# you leave; everything else exits 0 (cached) so scrolling spawns no cleaner.
 
 set -o noclobber -o noglob -o nounset -o pipefail
 
@@ -30,6 +31,17 @@ elif has kitty; then
   KITTEN="kitty +kitten"
 fi
 
+# Invoke kitten safely: $KITTEN may be the Nix bundle path (contains a space) or
+# the two-word "kitty +kitten", so it must never be used unquoted. (kitten is
+# not on PATH inside tmux here, so the space-containing bundle path is the one
+# actually used — unquoted it split and silently fell back to slow chafa.)
+kitten_run() {
+  case "$KITTEN" in
+    "kitty +kitten") kitty +kitten "$@" ;;
+    *)               "$KITTEN" "$@" ;;
+  esac
+}
+
 # Cache path for a generated thumbnail, keyed by device+inode+mtime so it is
 # regenerated whenever the source file changes. (macOS `stat -f`.)
 cache_for() {
@@ -41,14 +53,12 @@ cache_for() {
 # Draw an image in the preview pane, then stop (image persists until cleaner).
 draw() {
   if [ -n "$KITTEN" ]; then
-    # Inside tmux, draw via Unicode placeholders + tmux passthrough: the image
-    # is bound to text cells, so lf's normal pane redraw erases it on the next
-    # preview. The old direct-placement path relied on a delete escape that tmux
-    # mangled — that is what left "garbage" from previous previews on screen.
-    # (string, not array: keep working under macOS bash 3.2 + `set -u`.)
-    pt=""
-    [ -n "${TMUX:-}" ] && pt="--unicode-placeholder --passthrough tmux"
-    if $KITTEN icat --stdin no --transfer-mode memory $pt \
+    # Direct placement — fast and reliable inside lf's preview context. (The
+    # --unicode-placeholder/--passthrough path needs a terminal reply that lf,
+    # holding the tty, swallows, so it fell back to the slow qlmanage path.)
+    # tmux: allow-passthrough=on lets the escapes reach kitty; the cleaner wipes
+    # the image with `kitten icat --clear` (tmux-aware) when you leave it.
+    if kitten_run icat --stdin no --transfer-mode memory \
         --place "${W}x${H}@${X}x${Y}" "$1" </dev/null >/dev/tty 2>/dev/null; then
       exit 1
     fi
@@ -67,6 +77,10 @@ thumb() {
   draw "$out"
 }
 
+# Downscale a still image once into the cache, so repeat previews (lf re-runs the
+# previewer on every visit) draw a small file instead of re-decoding the full one.
+gen_image() { magick -define jpeg:size=2048x2048 "$1[0]" -auto-orient \
+                -resize '1920x1920>' -strip "$2" >/dev/null 2>&1; }
 gen_video() { ffmpegthumbnailer -i "$1" -o "$2" -s 1024 -q 8 >/dev/null 2>&1; }
 gen_svg()   { magick -background none -density 192 -- "$1" "$2" >/dev/null 2>&1; }
 gen_pdf()   { pdftoppm -png -singlefile -r 144 -- "$1" "${2%.jpg}" >/dev/null 2>&1 \
@@ -82,9 +96,9 @@ gen_ql() {  # macOS Quick Look — covers office docs, ebooks, many odd formats
 show_text() {
   if has bat; then
     bat --color=always --style=plain --paging=never --wrap=never \
-      --terminal-width="$W" -- "$1" && exit 5
+      --terminal-width="$W" -- "$1" && exit 0
   elif has highlight; then
-    highlight --out-format=xterm256 --force --line-length="$W" -- "$1" && exit 5
+    highlight --out-format=xterm256 --force --line-length="$W" -- "$1" && exit 0
   fi
   exit 2   # let lf render plain text itself
 }
@@ -93,14 +107,14 @@ show_meta() {
   if has mediainfo; then mediainfo -- "$1"
   elif has exiftool; then exiftool -- "$1"
   else file -Lb -- "$1"; fi
-  exit 5
+  exit 0
 }
 
 list_archive() {
-  has atool && atool --list -- "$1" 2>/dev/null && exit 5
-  bsdtar --list --file "$1" 2>/dev/null && exit 5
-  has 7z && 7z l -p -- "$1" 2>/dev/null && exit 5
-  has lsar && lsar -- "$1" 2>/dev/null && exit 5
+  has atool && atool --list -- "$1" 2>/dev/null && exit 0
+  bsdtar --list --file "$1" 2>/dev/null && exit 0
+  has 7z && 7z l -p -- "$1" 2>/dev/null && exit 0
+  has lsar && lsar -- "$1" 2>/dev/null && exit 0
   exit 1
 }
 
@@ -120,7 +134,7 @@ case "$MIME" in
     thumb "$FILE" gen_ql
     show_text "$FILE" ;;
   image/*)
-    draw "$FILE"
+    thumb "$FILE" gen_image
     thumb "$FILE" gen_ql
     show_meta "$FILE" ;;
   video/*)
@@ -133,7 +147,7 @@ case "$MIME" in
   application/pdf)
     has pdftoppm && thumb "$FILE" gen_pdf
     thumb "$FILE" gen_ql
-    has pdftotext && { pdftotext -l 10 -nopgbrk -q -- "$FILE" - | fmt -w "$W" && exit 5; }
+    has pdftotext && { pdftotext -l 10 -nopgbrk -q -- "$FILE" - | fmt -w "$W" && exit 0; }
     show_meta "$FILE" ;;
   application/json|*/json|*/xml|*/*+xml|*/javascript|*/x-shellscript)
     show_text "$FILE" ;;
@@ -147,10 +161,10 @@ case "$EXT" in
     list_archive "$FILE" ;;
   doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|key|pages|numbers|rtf|epub|mobi|azw3|fb2)
     thumb "$FILE" gen_ql
-    has pandoc && { pandoc -s -t plain -- "$FILE" 2>/dev/null | head -n 300 && exit 5; }
+    has pandoc && { pandoc -s -t plain -- "$FILE" 2>/dev/null | head -n 300 && exit 0; }
     show_meta "$FILE" ;;
   torrent)
-    has transmission-show && { transmission-show -- "$FILE" && exit 5; }
+    has transmission-show && { transmission-show -- "$FILE" && exit 0; }
     show_meta "$FILE" ;;
 esac
 
