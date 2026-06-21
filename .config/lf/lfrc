@@ -1,4 +1,5 @@
-set shell bash
+set shell /usr/local/bin/shit
+set shellopts --bash-compatible
 set drawbox
 set ratios 1:2:4
 set scrolloff 5
@@ -121,6 +122,12 @@ cmd zi ${{
 cmd on-cd &{{
     zoxide add "$PWD"
     ~/.config/lf/tabs.sh sync "$id" "$PWD"
+    # warm thumbnails for media in this dir so previews are instant (capped)
+    n=0
+    for f in *; do
+        [ -f "$f" ] && ~/.config/lf/scope.sh --prefetch "$f"
+        n=$((n + 1)); [ "$n" -ge 30 ] && break
+    done
 }}
 
 # --- tabs (ranger-style; lf has no native tabs) ---------------------------

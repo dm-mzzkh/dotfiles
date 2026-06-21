@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/local/bin/shit --bash-compatible
 #
 # lf previewer — kitty graphics for images/video/pdf/office, syntax-highlighted
 # text, rich metadata, with graceful fallbacks. Tuned for macOS + kitty.
@@ -8,7 +8,12 @@
 # Images draw out-of-band and exit 1 (cache off) so the cleaner clears them when
 # you leave; everything else exits 0 (cached) so scrolling spawns no cleaner.
 
-set -o noclobber -o noglob -o nounset -o pipefail
+# (no noclobber: shit's is stricter than bash's and rejects `>/dev/null`)
+set -o noglob -o nounset -o pipefail
+
+# Put kitten on PATH (it isn't inside tmux here) so it resolves by name instead
+# of the space-containing Nix bundle path.
+export PATH="/Applications/Nix Apps/kitty.app/Contents/MacOS:$PATH"
 
 FILE="$1"
 W="${2:-80}"; H="${3:-25}"; X="${4:-0}"; Y="${5:-0}"
@@ -79,8 +84,15 @@ thumb() {
 
 # Downscale a still image once into the cache, so repeat previews (lf re-runs the
 # previewer on every visit) draw a small file instead of re-decoding the full one.
-gen_image() { magick -define jpeg:size=2048x2048 "$1[0]" -auto-orient \
-                -resize '1920x1920>' -strip "$2" >/dev/null 2>&1; }
+# Prefer vipsthumbnail (libvips) — several times faster than magick — if present.
+gen_image() {
+  if has vipsthumbnail; then
+    vipsthumbnail "$1" --size 1280x1280 -o "$2[Q=82,strip]" >/dev/null 2>&1
+  else
+    magick -define jpeg:size=1536x1536 "$1[0]" -auto-orient \
+      -resize '1280x1280>' -strip "$2" >/dev/null 2>&1
+  fi
+}
 gen_video() { ffmpegthumbnailer -i "$1" -o "$2" -s 1024 -q 8 >/dev/null 2>&1; }
 gen_svg()   { magick -background none -density 192 -- "$1" "$2" >/dev/null 2>&1; }
 gen_pdf()   { pdftoppm -png -singlefile -r 144 -- "$1" "${2%.jpg}" >/dev/null 2>&1 \
@@ -117,6 +129,20 @@ list_archive() {
   has lsar && lsar -- "$1" 2>/dev/null && exit 0
   exit 1
 }
+
+# Prefetch mode (called by on-cd in the background): build the cached thumbnail
+# for one file and exit without drawing, so the first real preview is warm.
+if [ "${1:-}" = --prefetch ]; then
+  pf="${2:-}"; { [ -n "$pf" ] && [ -f "$pf" ]; } || exit 0
+  out="$(cache_for "$pf")" || exit 0
+  [ -s "$out" ] && exit 0
+  case "$(file -Lb --mime-type -- "$pf" 2>/dev/null)" in
+    image/*)         gen_image "$pf" "$out" ;;
+    video/*)         gen_video "$pf" "$out" ;;
+    application/pdf) gen_pdf   "$pf" "$out" ;;
+  esac
+  exit 0
+fi
 
 # --- dispatch --------------------------------------------------------------
 

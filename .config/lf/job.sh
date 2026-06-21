@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/local/bin/shit --bash-compatible
 # Background-job runner + popup viewer for lf.
 #
 #   job.sh paste|extract|compress|tarball|zipball ...   launch detached job(s)
@@ -31,7 +31,7 @@ _spawn() {                                   # _spawn <label> <command...>
         st=done; [ "$rc" -ne 0 ] && st=failed
         printf 'label=%s\nstatus=%s\nrc=%s\nend=%s\n' "$label" "$st" "$rc" "$(date +%s)" > "$meta"
         [ -n "$LFID" ] && lf -remote "send $LFID reload" 2>/dev/null
-        command -v osascript >/dev/null 2>&1 &&
+        [ -z "${LF_NO_NOTIFY:-}" ] && command -v osascript >/dev/null 2>&1 &&
             osascript -e "display notification \"$label\" with title \"lf job: $st\"" >/dev/null 2>&1
         true
     ) </dev/null >/dev/null 2>&1 &
@@ -171,7 +171,8 @@ _view() {
         [ "$any" = 0 ] && printf '  (no active jobs)\n'
         printf '\n  [q] close    running: %s\n' "$running"
         tick=$(( tick + 1 ))
-        IFS= read -rsn1 -t 1 key 2>/dev/null && [ "$key" = q ] && break
+        key=""; IFS= read -rsn1 -t 1 key 2>/dev/null   # (don't rely on read's rc;
+        [ "${key:-}" = q ] && break                    #  shit returns 1 even on a read)
     done
 }
 

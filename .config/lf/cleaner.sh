@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/local/bin/shit --bash-compatible
 # lf cleaner — erase the kitty image drawn by scope.sh before the next preview.
 #
 # lf only runs the cleaner when leaving a preview whose cache is disabled
@@ -9,6 +9,7 @@
 # Must clear via `kitten icat --clear` (not a raw escape): kitten wraps the
 # escapes in tmux passthrough, so it also works when lf runs inside tmux.
 
+export PATH="/Applications/Nix Apps/kitty.app/Contents/MacOS:$PATH"
 has() { command -v "$1" >/dev/null 2>&1; }
 
 KITTEN=""
