@@ -170,10 +170,6 @@ local section = {
         type = "group",
         val = {
             button("e", "New file", "<cmd>ene <CR>"),
-        },
-    },{
-        type = "group",
-        val = {
             button("d", "idi na huy", "<cmd>q <CR>"),
         },
     },

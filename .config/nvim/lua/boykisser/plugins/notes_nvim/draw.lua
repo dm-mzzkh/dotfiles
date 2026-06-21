@@ -60,8 +60,4 @@ function M.draw_cat()
   vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
 end
 
-function M.hw()
-  print('hw')
-end
-
 return M

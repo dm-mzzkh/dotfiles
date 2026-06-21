@@ -1,5 +1,10 @@
 local set = vim.opt
 
+-- disable netrw early so nvim-tree is the only file explorer
+-- (must run at startup, before netrw's plugin loads)
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
 set.clipboard = "unnamedplus"
 
 set.shiftwidth=2
