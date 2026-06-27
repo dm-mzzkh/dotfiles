@@ -1,5 +1,0 @@
-#!/bin/sh
-file=$(echo "" | dmenu)
-new_file=~/Documents/vimwiki/media/$(date +%Y%m%d%H%M%S).$(echo $file | awk -F . '{print $NF}')
-cp $file $new_file
-echo "!""[сорс]($new_file)" | xclip -selection c
