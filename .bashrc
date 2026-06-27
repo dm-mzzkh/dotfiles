@@ -16,6 +16,10 @@ export PREFIX="~/.local"
 export HISTFILE=$HOME/.bash_history
 export TERM=xterm-256color
 export DOCKER_DEFAULT_PLATFORM=linux/amd64
+export PATH="/Users/dm/.gdvm/bin/current_godot:/Users/dm/.gdvm/bin:$PATH"
+export ANTHROPIC_BASE_URL=http://localhost:11434/v1
+export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 
 HISTSIZE=10000
 HISTFILESIZE=20000
@@ -94,9 +98,9 @@ if type show_tasks >/dev/null 2>&1; then
     show_tasks
 fi
 
-# zoxide
-eval "$(zoxide init bash)"
-
 if ! pgrep -u "$USER" ssh-agent > /dev/null; then
     eval "$(ssh-agent -s)" > /dev/null
 fi
+. "$HOME/.cargo/env"
+
+eval "$(zoxide init bash)"

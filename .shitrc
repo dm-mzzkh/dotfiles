@@ -1,0 +1,184 @@
+# === Completion hints (added 2026-06-19) ====================================
+# In default mood, shit derives flag and subcommand hints from man(1) on an
+# explicit TAB:  git -<TAB> / ssh -<TAB> / ls -<TAB> list flags, git <TAB>
+# lists subcommands, git commit -<TAB> lists that subcommand's flags.
+#
+# Its subcommand index scans $MANPATH (else only /usr/local + /usr/share), so
+# point it at Homebrew's tree (Apple Silicon /opt/homebrew, Intel /usr/local)
+# and the Xcode Command-Line-Tools tree, where Apple's /usr/bin/git pages live.
+# Missing dirs are ignored; the trailing ':' keeps the system defaults for both
+# shit and man(1). ${MANPATH-} avoids shit's strict unset-variable error.
+_mp="${MANPATH-}"
+for _md in /opt/homebrew/share/man \
+           /usr/local/share/man \
+           /Library/Developer/CommandLineTools/usr/share/man; do
+  case ":$_mp:" in
+    *":$_md:"*) ;;
+    *) _mp="${_mp:+$_mp:}$_md" ;;
+  esac
+done
+case "$_mp" in *:) ;; *) _mp="$_mp:" ;; esac
+export MANPATH="$_mp"
+unset _md _mp
+
+# Optional, currently OFF: bash-completion@2 would add function-driven hints
+# (git branch/remote names, ssh hosts from ~/.ssh/config and known_hosts).
+# shit speaks the bash complete/compgen/compopt protocol incl. the `complete -D`
+# 124-retry loader, BUT as of 2026-06 its loader trips shit's strict mode and
+# several bash_completion.d scripts hit parser gaps (noise on every startup),
+# and the -F functions don't yet yield results (git checkout <TAB> falls back
+# to filenames). Re-enable once shit's bash engine covers more:
+#   for _bc in /opt/homebrew/share/bash-completion/bash_completion \
+#              /usr/local/share/bash-completion/bash_completion; do
+#     [ -r "$_bc" ] && { set +u; . "$_bc" 2>/dev/null; break; }
+#   done; unset _bc
+
+# === Dynamic git argument completion (added 2026-06-19) ===
+# Dynamic git argument completion for shit: remote names, `git remote`
+# subcommands, and ref names. Runs only where the man-page stage yields
+# nothing (deeper argument positions), on an explicit TAB. The function body
+# executes in shit's bash mode, so arrays/compgen/local are fine here.
+_shit_git_complete() {
+  local i pi cur prev sub
+  i=$COMP_CWORD
+  pi=$((i - 1))
+  cur=${COMP_WORDS[i]}
+  prev=${COMP_WORDS[pi]}
+  sub=${COMP_WORDS[1]}
+  COMPREPLY=()
+  case $sub in
+  remote)
+    if [ "$i" -eq 2 ]; then
+      COMPREPLY=($(compgen -W "add get-url prune remove rename set-branches set-head set-url show update" -- "$cur"))
+    else
+      case $prev in
+      set-url | get-url | remove | rm | rename | show | prune | set-head | set-branches | update)
+        COMPREPLY=($(compgen -W "$(git remote 2>/dev/null)" -- "$cur")) ;;
+      *) ;;
+      esac
+    fi
+    ;;
+  push | pull | fetch)
+    if [ "$i" -eq 2 ]; then
+      COMPREPLY=($(compgen -W "$(git remote 2>/dev/null)" -- "$cur"))
+    else
+      COMPREPLY=($(compgen -W "$(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null)" -- "$cur"))
+    fi
+    ;;
+  checkout | switch | merge | rebase | reset | cherry-pick | revert | branch | log | diff | show)
+    COMPREPLY=($(compgen -W "$(git for-each-ref --format='%(refname:short)' refs/heads refs/remotes refs/tags 2>/dev/null)" -- "$cur"))
+    ;;
+  *) ;;
+  esac
+}
+complete -F _shit_git_complete git
+
+
+
+
+
+
+
+
+
+[[ $- != *i* ]] && return
+
+export PATH="$HOME/bin:$PATH"
+export MANPAGER="nvim +Man!"
+export EDITOR="nvim" 
+export TERM="xterm-256color" 
+#export TERMINAL="kitty" 
+export BRONSER="firefox" 
+export READER="zathura"
+export PREFIX="~/.local"
+
+export HISTFILE=$HOME/.bash_history
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
+
+HISTSIZE=10000
+HISTFILESIZE=20000
+HISTCONTROL=ignoredups
+shopt -s histappend
+
+
+if [ -d "$HOME/.cargo/bin" ] ; then
+    export PATH=$HOME/.cargo/bin:$PATH
+fi
+if [ -d "$HOME/.local/bin/scripts" ] ; then
+    export PATH=$HOME/.local/bin/scripts:$PATH
+fi
+if [ -d "$HOME/.local/bin/system" ] ; then
+    export PATH=$HOME/.local/bin/system:$PATH
+fi
+if [ -d "$HOME/.local/bin" ] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
+
+
+
+alias yaourt='paru'
+alias yay='paru'
+alias paru-find='paru -Slq | fzf --multi --preview "paru -Si {1}"'
+
+alias rm='rm -i'
+
+alias cat='bat -p --style=grid --style plain --pager never'
+alias grep='rg'
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+alias ip='ip -c'
+
+
+alias vim='nvim'
+alias vi='nvim'
+alias nano='nvim'
+alias notes='nvim ~/Documents/vimwiki/notes/'
+
+alias hrg='history | rg'
+alias unzipd='f(){ unzip "$1" -d "${1%.zip}"; }; f'
+
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit -m'
+alias gp='git push'
+alias gl='git log --oneline --graph --decorate --all'
+alias lg='lazygit'
+
+
+if [[ "$XDG_SESSION_TYPE" == "tty" ]]; then
+  echo -e "Howdy, \033[35m$(whoami)\033[37m! from \033[35m$(hostname)\033[37m with <3"
+else
+  echo -e "              Howdy, \033[35m$(whoami)\033[37m! from \033[35m$(hostname)\033[37m with <3"
+  echo "   /ᐠ-˕-マ  ノ"
+  echo "乀(  J し)"
+fi
+
+if type when >/dev/null 2>&1; then
+    when cm
+fi
+
+# zoxide
+. ~/.zoxide.sh
+
+if ! pgrep -u "$USER" ssh-agent > /dev/null; then
+    eval "$(ssh-agent -s)" > /dev/null
+fi
+
+
+
+
+
+
+# =========================
+# prompt  (fully native, zero subprocesses per prompt)
+# =========================
+# \w   working dir (blue)
+# $SHIT_GIT_BRANCH   native branch, no git subprocess, only inside a repo
+# \D   last command's duration, monotonic clock, blank under 5ms
+# \?   last exit status, auto-colored green on 0 / red otherwise
+# \$   '#' for root, else '$'
+export PS1='\[\e[32m\]\u@\h:\[\e[34m\]\w\[\e[0m\]${SHIT_GIT_BRANCH:+ 🌿$SHIT_GIT_BRANCH}\[\e[90m\] \D\[\e[0m\] \? \$ '
