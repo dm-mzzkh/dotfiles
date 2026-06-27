@@ -1,0 +1,6 @@
+--target=$HOME
+--ignore=\.git
+--ignore=README\.md
+--ignore=\.gitmodules
+--ignore=\.gitignore
+--ignore=\.stowrc
