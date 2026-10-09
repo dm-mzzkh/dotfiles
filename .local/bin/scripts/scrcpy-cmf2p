@@ -1,0 +1,134 @@
+#!/usr/bin/env zsh
+# ponytail: Три транспорта к cmf-2p, по приоритету:
+#   1) локальный USB (минимальная задержка)
+#   2) SSH-туннель к astolfo.ts, где телефон по USB (adb remote через port forward)
+#   3) Tailscale-прямое ADB-соединение (порт 5555, через DERP-relay — высокий latency)
+# На astolfo ADB-сервер должен видеть телефон; попап авторизации approve-ится на телефоне.
+CMF2P='100.90.58.29:5555'
+SSH_HOST='astolfo.ts'
+ADB_TUNNEL_PORT=5038      # локальный → remote 5037 (adb-сервер)
+VIDEO_TUNNEL_PORT=5039   # локальный → remote 5039 (видео-поток scrcpy)
+SCRPY_TUNNEL_PORT_REMOTE=5039
+
+mode="${CMF2P_MODE:-auto}"
+typeset -a SSH_TUNNEL_ARGS
+
+pick_serial() {
+  # Только настоящие USB-устройства, не вида host:port.
+  adb devices | awk 'NR>1 && $2=="device" && $1 !~ /:/ {print $1; exit}'
+}
+
+# --- 1) Локальный USB --------------------------------------------------------
+if [[ "$mode" == "auto" || "$mode" == "usb" ]]; then
+  USB="$(pick_serial)"
+  if [[ -n "$USB" ]]; then
+    # Через USB отключаем Tailscale-коннект, чтобы scrcpy не выбрал не тот транспорт.
+    adb disconnect "$CMF2P" >/dev/null 2>&1
+    SERIAL="$USB"
+    TRANSPORT="local-usb"
+  fi
+fi
+
+# --- 2) SSH-туннель к astolfo -----------------------------------------------
+if [[ -z "$SERIAL" && ( "$mode" == "auto" || "$mode" == "ssh" ) ]]; then
+  # ponytail: НЕ зовём `adb -P 5038 kill-server` — это через туннель убивает
+  # удалённый adb-сервер на astolfo. Только ssh- clean и старт fresh tunnel.
+  pkill -f "L ${ADB_TUNNEL_PORT}:127.0.0.1:5037" 2>/dev/null
+  pkill -f "L ${VIDEO_TUNNEL_PORT}:127.0.0.1:${SCRPY_TUNNEL_PORT_REMOTE}" 2>/dev/null
+  sleep 1
+
+  ssh -fN -o ExitOnForwardFailure=yes \
+    -L "${ADB_TUNNEL_PORT}:127.0.0.1:5037" \
+    -L "${VIDEO_TUNNEL_PORT}:127.0.0.1:${SCRPY_TUNNEL_PORT_REMOTE}" \
+    "$SSH_HOST" 2>/dev/null
+  sleep 1
+
+  ADB_TUNNEL_OK=0
+  if lsof -nP -iTCP:"$ADB_TUNNEL_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    if lsof -nP -iTCP:"$ADB_TUNNEL_PORT" -sTCP:LISTEN | awk 'NR>1 {print $1}' | grep -qx ssh; then
+      ADB_TUNNEL_OK=1
+    fi
+  fi
+
+  if [[ "$ADB_TUNNEL_OK" == 1 ]]; then
+    # Гарантируем, что удалённый adb-сервер поднялся.
+    ssh "$SSH_HOST" adb start-server >/dev/null 2>&1
+    export ANDROID_ADB_SERVER_PORT="$ADB_TUNNEL_PORT"
+    REMOTE_USB=""
+    for _ in 1 2 3 4 5; do
+      REMOTE_USB="$(adb devices 2>/dev/null | awk 'NR>1 && $2=="device" {print $1; exit}')"
+      [[ -n "$REMOTE_USB" ]] && break
+      sleep 1
+    done
+    if [[ -n "$REMOTE_USB" ]]; then
+      SERIAL="$REMOTE_USB"
+      TRANSPORT="ssh-via-$SSH_HOST"
+      # ponytail: --port physiology — adb-forward создаётся на remote-порт = первой
+      # записи из range; scrcpy клиент коннектится к tunnel-port. SSH-туннель
+      # пробрасывает 5039 mac → 5039 astolfo, поэтому --port=5039:X должен
+      # приземлиться ровно на 5039, и client ловит тот же порт.
+      SSH_TUNNEL_ARGS=(--force-adb-forward --tunnel-host=127.0.0.1 --tunnel-port="$VIDEO_TUNNEL_PORT" --port="$VIDEO_TUNNEL_PORT")
+    else
+      pkill -f "L ${ADB_TUNNEL_PORT}:127.0.0.1:5037" 2>/dev/null
+      pkill -f "L ${VIDEO_TUNNEL_PORT}:127.0.0.1:${SCRPY_TUNNEL_PORT_REMOTE}" 2>/dev/null
+      unset ANDROID_ADB_SERVER_PORT
+    fi
+  else
+    pkill -f "L ${ADB_TUNNEL_PORT}:127.0.0.1:5037" 2>/dev/null
+    pkill -f "L ${VIDEO_TUNNEL_PORT}:127.0.0.1:${SCRPY_TUNNEL_PORT_REMOTE}" 2>/dev/null
+    unset ANDROID_ADB_SERVER_PORT
+  fi
+fi
+
+# --- 3) Tailscale ------------------------------------------------------------
+if [[ -z "$SERIAL" && ( "$mode" == "auto" || "$mode" == "tailscale" ) ]]; then
+  unset ANDROID_ADB_SERVER_PORT
+  adb connect "$CMF2P" >/dev/null 2>&1
+  if adb -s "$CMF2P" get-state >/dev/null 2>&1; then
+    SERIAL="$CMF2P"
+    TRANSPORT="tailscale"
+  fi
+fi
+
+if [[ -z "$SERIAL" ]]; then
+  echo "Не нашёл cmf-2p ни по USB, ни через $SSH_HOST, ни по Tailscale." >&2
+  echo "Вариант: вставьте USB-кабель, authorize на телефоне, или задайте CMF2P_MODE=ssh|tailscale|usb." >&2
+  ssh -O exit -o ControlPath="$HOME/.ssh/scrcpy-cmf2p-%C" "$SSH_HOST" >/dev/null 2>&1
+  exit 1
+fi
+
+echo "[scrcpy-cmf2p] транспорт: $TRANSPORT, серийник: $SERIAL"
+
+cleanup() {
+  # Заблокировать телефон
+  adb ${ANDROID_ADB_SERVER_PORT:+-P "$ANDROID_ADB_SERVER_PORT"} \
+      -s "$SERIAL" shell input keyevent KEYCODE_SLEEP >/dev/null 2>&1
+
+  # Закрыть SSH-туннели, если использовались
+  pkill -f "L ${ADB_TUNNEL_PORT}:127.0.0.1:5037" 2>/dev/null
+  pkill -f "L ${VIDEO_TUNNEL_PORT}:127.0.0.1:${SCRPY_TUNNEL_PORT_REMOTE}" 2>/dev/null
+}
+
+trap cleanup EXIT
+
+
+/run/current-system/sw/bin/scrcpy \
+  --serial="$SERIAL" \
+  "${SSH_TUNNEL_ARGS[@]}" \
+  --video-codec=h264 \
+  --max-size=1280 \
+  --max-fps=30 \
+  --video-bit-rate=2M \
+  --video-buffer=0 \
+  --audio-bit-rate=96K \
+  --audio-buffer=40 \
+  --audio-output-buffer=20 \
+  --stay-awake \
+  --disable-screensaver \
+  --window-title=cmf-2p \
+  --show-touches \
+  --fullscreen \
+  --turn-screen-off \
+  "$@"
+
+exit $?
