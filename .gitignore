@@ -13,3 +13,7 @@
 .config/opencode/logs/
 .config/opencode/gcp-oauth.keys.json
 .config/opencode/bun.lock
+
+# make install/test artifacts
+/.local/bin/lf
+.config/tmux/plugins/
