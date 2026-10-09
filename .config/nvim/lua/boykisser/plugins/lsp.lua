@@ -49,12 +49,19 @@ return {
         end,
       })
 
+      vim.lsp.config("tinymist", {
+        filetypes = { "typst" },
+        settings = { formatterMode = "typstyle" },
+      })
+
       -- Ставит нужные серверы и сам вызывает vim.lsp.enable (automatic_enable)
       require("mason-lspconfig").setup({
-        ensure_installed = { "pyright" },
+        ensure_installed = { "pyright", "clangd", "tinymist" },
       })
 
       vim.lsp.enable("pyright")
+      vim.lsp.enable("clangd")
+      vim.lsp.enable("tinymist")
     end,
   },
 

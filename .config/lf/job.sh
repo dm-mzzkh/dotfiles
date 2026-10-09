@@ -94,7 +94,15 @@ _do_paste() {                                # _do_paste <policy> <mode> <src...
 }
 _do_compress() { compress_video "$1" ; }
 _do_tar()      { local n="$1"; shift; mkdir -p "$n" && cp -r "$@" "$n" && tar czvf "$n.tar.gz" "$n" && rm -rf "$n"; }
-_do_zip()      { local n="$1"; shift; mkdir -p "$n" && cp -r "$@" "$n" && zip -r "$n.zip" "$n" && rm -rf "$n"; }
+_do_zip()      {
+    local n="$1" nn k=1; shift
+    nn="$n.zip"
+    if [ -e "$nn" ]; then
+        while [ -e "${n}_${k}.zip" ]; do let k+=1; done
+        nn="${n}_${k}.zip"
+    fi
+    zip -rq "$nn" "$@"
+}
 _do_extract()  {
     local f="$1" base dir n o
     case "$f" in
@@ -102,14 +110,10 @@ _do_extract()  {
             base="$(basename "$f")"
             dir="${base%.tar.*}"; [ "$dir" = "$base" ] && dir="${base%.*}"
             # unique subdir so two archives (or a re-extract) never collide
-            if [ -e "$dir" ]; then n=1; while [ -e "${dir}_${n}" ]; do n=$(( n + 1 )); done; dir="${dir}_${n}"; fi
-            mkdir -p -- "$dir"
-            case "$f" in
-                *.tar|*.tar.*|*.tbz|*.tbz2|*.tgz|*.txz|*.tzst) tar xvf "$f" -C "$dir";;
-                *.zip|*.jar) unzip -o -d "$dir" "$f";;
-                *.rar)       unrar x -y "$f" "$dir"/;;
-                *.7z)        7z x -y -o"$dir" "$f";;
-            esac ;;
+            if [ -e "$dir" ]; then n=1; while [ -e "${dir}_${n}" ]; do let n+=1; done; dir="${dir}_${n}"; fi
+            # -D: contents flat in $dir — rar never dumps files into cwd,
+            # zip never double-wraps; the fresh folder is created only here
+            unar -q -r -D -o "$dir" -- "$f" ;;
         *.gz)  o="$(_freefile "${f%.gz}")";  gunzip  -c "$f" > "$o" ;;
         *.bz2) o="$(_freefile "${f%.bz2}")"; bunzip2 -c "$f" > "$o" ;;
         *.xz)  o="$(_freefile "${f%.xz}")";  xz  -dc "$f" > "$o" ;;
@@ -194,7 +198,7 @@ case "$cmd" in
     compress)
         for f in "$@"; do _spawn "compress $(basename "$f")" _do_compress "$f"; done ;;
     tarball) n="$1"; shift; _spawn "tar $n" _do_tar "$n" "$@" ;;
-    zipball) n="$1"; shift; _spawn "zip $n" _do_zip "$n" "$@" ;;
+    zipball) n="$1"; shift; [ "$#" -gt 0 ] || exit 0; _spawn "zip $n" _do_zip "$n" "$@" ;;
     view)    _view ;;
     clean)
         for meta in "$DIR"/*.meta; do

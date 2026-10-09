@@ -1,4 +1,4 @@
-set shell /usr/local/bin/shit
+set shell /Users/dm/.local/bin/kosh
 set shellopts --bash-compatible
 set drawbox
 set ratios 1:2:4
@@ -88,7 +88,12 @@ cmd mkdir %{{
 map Co :push $mkdir<space>
 map Ci :push $touch<space>
 
-# runs in the background via job.sh (formats + extract-into-subdir live there);
+# archive the selection into a .zip (asks for a name)
+map Az :zip
+
+# --- universal unarchive + background jobs ---------------------------------
+# runs in the background via job.sh (universal extract-into-subdir lives there;
+# every archive — tar/zip/rar/7z — unpacks into a fresh folder named after it).
 # watch progress with `gj`.
 cmd extract &{{
     files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
@@ -102,10 +107,19 @@ cmd tar &{{
     LF_ID="$id" ~/.config/lf/job.sh tarball "$1" "${files[@]}"
 }}
 
-cmd zip &{{
+cmd zip ${{
+    set -f
+    name="$1"
+    if [ -z "$name" ]; then
+        clear; printf 'zip name: '; read -r name
+        [ -n "$name" ] || name="$(basename -- "$(printf '%s' "$fx" | head -n1)")"
+    fi
+    [ -n "$name" ] || exit 0
     files=(); while IFS= read -r p; do [ -n "$p" ] && files+=("$p"); done <<< "$fx"
-    LF_ID="$id" ~/.config/lf/job.sh zipball "$1" "${files[@]}"
+    LF_ID="$id" ~/.config/lf/job.sh zipball "${name%.zip}" "${files[@]}"
 }}
+
+map Az :zip
 
 # bash/any POSIX shell
 
