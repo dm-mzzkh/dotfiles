@@ -1,0 +1,15 @@
+.config/nvim/*.spl
+.config/nvim/*.add.spl
+.config/nvim/lazy-lock.json
+
+# Local tool state
+.claude/
+.opencode/
+.local/bin/scripts/.opencode/
+
+# Opencode config local state
+.config/opencode/.opencode/
+.config/opencode/node_modules/
+.config/opencode/logs/
+.config/opencode/gcp-oauth.keys.json
+.config/opencode/bun.lock
