@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # cleaner.sh runs cleanly.
 
 t_cleaner(){

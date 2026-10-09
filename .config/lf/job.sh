@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # Background-job runner + popup viewer for lf.
 #
 #   job.sh paste|extract|compress|tarball|zipball ...   launch detached job(s)

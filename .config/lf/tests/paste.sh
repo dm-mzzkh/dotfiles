@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # paste tests (sourced by ../run.sh) — job.sh paste: copy/move × rename/merge.
 
 t_paste_copy_rename(){

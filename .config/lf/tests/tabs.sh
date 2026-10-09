@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # tabs.sh state management — sync / new / close.
 
 t_tabs(){

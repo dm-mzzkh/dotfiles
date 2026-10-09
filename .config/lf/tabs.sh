@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 #
 # ranger-style tabs for lf (which has none natively). Each lf instance keeps a
 # list of "tab" directories; switching cd's the single pane and redraws a tab

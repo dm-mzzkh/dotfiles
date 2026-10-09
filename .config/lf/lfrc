@@ -1,5 +1,5 @@
 set shell /Users/dm/.local/bin/kosh
-set shellopts --bash-compatible
+set shellopts --mood=bash
 set drawbox
 set ratios 1:2:4
 set scrolloff 5

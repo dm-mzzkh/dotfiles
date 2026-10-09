@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 #
 # lf previewer — kitty graphics for images/video/pdf/office, syntax-highlighted
 # text, rich metadata, with graceful fallbacks. Tuned for macOS + kitty.

@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # extract tests — archives into a unique subdir, single-file decompressors.
 
 t_extract_archives(){

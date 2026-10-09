@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 #
 # Test launcher for the lf config. Sources the per-area test files in tests/ and
 # runs them, timing each test and the whole run. Fully isolated: each test uses

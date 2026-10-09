@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # lf cleaner — erase the kitty image drawn by scope.sh before the next preview.
 #
 # lf only runs the cleaner when leaving a preview whose cache is disabled

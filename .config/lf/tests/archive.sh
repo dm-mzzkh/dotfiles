@@ -1,4 +1,4 @@
-#!/usr/local/bin/shit --bash-compatible
+#!/Users/dm/.local/bin/kosh --mood=bash
 # archive creation — job.sh tarball / zipball.
 
 t_tarball(){
