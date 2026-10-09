@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "summarizerMode": "clean",
+  "memoryModel": "oc/glm-5.3-flash",
+  "remindEveryN": 4,
+  "injectInSubagents": true,
+  "cleanFallbackToActiveSession": false,
+  "debug": false
+}
