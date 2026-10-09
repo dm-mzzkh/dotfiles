@@ -1,5 +1,5 @@
 return {
-  { "kaarmu/typ.vim", ft = "typst" },
+  { "kaarmu/typst.vim", ft = "typst" },
   {
     "neovim/nvim-lspconfig",
     ft = "typst",
